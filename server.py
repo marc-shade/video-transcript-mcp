@@ -96,6 +96,105 @@ def extract_video_id(url: str) -> Optional[str]:
 async def handle_list_tools() -> list[types.Tool]:
     """List available video transcript processing tools."""
     return [
+        # Discovery tools
+        types.Tool(
+            name="search_youtube",
+            description="Search YouTube for videos by query. Returns video metadata including title, channel, duration, and view count. Uses browser cookies for paid account access.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query (e.g., 'AGI self-improvement', 'neural network tutorial')"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results (default: 10, max: 50)",
+                        "default": 10
+                    },
+                    "sort_by": {
+                        "type": "string",
+                        "description": "Sort order",
+                        "enum": ["relevance", "date", "view_count", "rating"],
+                        "default": "relevance"
+                    }
+                },
+                "required": ["query"]
+            }
+        ),
+        types.Tool(
+            name="browse_channel",
+            description="Get recent videos from a YouTube channel. Supports @handles and channel URLs.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "channel": {
+                        "type": "string",
+                        "description": "Channel @handle (e.g., @3blue1brown) or URL"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum videos to return (default: 10)",
+                        "default": 10
+                    }
+                },
+                "required": ["channel"]
+            }
+        ),
+        types.Tool(
+            name="get_trending",
+            description="Get trending YouTube videos by category.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "description": "Trending category",
+                        "enum": ["now", "music", "gaming", "movies"],
+                        "default": "now"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum videos to return (default: 20)",
+                        "default": 20
+                    }
+                }
+            }
+        ),
+        types.Tool(
+            name="get_video_info",
+            description="Get detailed metadata for a specific YouTube video.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "YouTube video URL or video ID"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        types.Tool(
+            name="browse_playlist",
+            description="Get videos from a YouTube playlist.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "playlist": {
+                        "type": "string",
+                        "description": "Playlist URL or playlist ID"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum videos to return (default: 50)",
+                        "default": 50
+                    }
+                },
+                "required": ["playlist"]
+            }
+        ),
+        # Processing tools
         types.Tool(
             name="fetch_youtube_transcript",
             description="Fetch transcript from YouTube video using yt-dlp. Returns cleaned, structured transcript text.",
