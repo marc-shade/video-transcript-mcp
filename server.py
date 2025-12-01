@@ -338,7 +338,24 @@ async def handle_call_tool(
 ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Handle tool execution requests."""
 
-    if name == "fetch_youtube_transcript":
+    # Discovery tools
+    if name == "search_youtube":
+        return await handle_search_youtube(arguments or {})
+
+    elif name == "browse_channel":
+        return await handle_browse_channel(arguments or {})
+
+    elif name == "get_trending":
+        return await handle_get_trending(arguments or {})
+
+    elif name == "get_video_info":
+        return await handle_get_video_info(arguments or {})
+
+    elif name == "browse_playlist":
+        return await handle_browse_playlist(arguments or {})
+
+    # Processing tools
+    elif name == "fetch_youtube_transcript":
         return await fetch_youtube_transcript(arguments or {})
 
     elif name == "clean_transcript":
@@ -358,6 +375,207 @@ async def handle_call_tool(
 
     else:
         raise ValueError(f"Unknown tool: {name}")
+
+
+async def handle_search_youtube(args: Dict) -> List[types.TextContent]:
+    """Search YouTube for videos."""
+    query = args.get("query", "")
+    max_results = min(args.get("max_results", 10), 50)
+    sort_by = args.get("sort_by", "relevance")
+
+    logger.info(f"Searching YouTube for: {query} (max={max_results})")
+
+    try:
+        results = await yt_search(
+            query=query,
+            max_results=max_results,
+            sort_by=sort_by,
+            use_cookies=True
+        )
+
+        videos = [v.to_dict() for v in results]
+
+        logger.info(f"Found {len(videos)} videos")
+
+        return [types.TextContent(
+            type="text",
+            text=json.dumps({
+                "success": True,
+                "query": query,
+                "count": len(videos),
+                "videos": videos
+            }, indent=2)
+        )]
+
+    except Exception as e:
+        logger.error(f"YouTube search failed: {e}", exc_info=True)
+        return [types.TextContent(
+            type="text",
+            text=json.dumps({
+                "success": False,
+                "error": str(e)
+            })
+        )]
+
+
+async def handle_browse_channel(args: Dict) -> List[types.TextContent]:
+    """Get videos from a YouTube channel."""
+    channel = args.get("channel", "")
+    max_results = args.get("max_results", 10)
+
+    logger.info(f"Browsing channel: {channel}")
+
+    try:
+        results = await get_channel_videos(
+            channel_url=channel,
+            max_results=max_results,
+            use_cookies=True
+        )
+
+        videos = [v.to_dict() for v in results]
+
+        logger.info(f"Found {len(videos)} videos from channel")
+
+        return [types.TextContent(
+            type="text",
+            text=json.dumps({
+                "success": True,
+                "channel": channel,
+                "count": len(videos),
+                "videos": videos
+            }, indent=2)
+        )]
+
+    except Exception as e:
+        logger.error(f"Channel browse failed: {e}", exc_info=True)
+        return [types.TextContent(
+            type="text",
+            text=json.dumps({
+                "success": False,
+                "error": str(e)
+            })
+        )]
+
+
+async def handle_get_trending(args: Dict) -> List[types.TextContent]:
+    """Get trending YouTube videos."""
+    category = args.get("category", "now")
+    max_results = args.get("max_results", 20)
+
+    logger.info(f"Getting trending: {category}")
+
+    try:
+        results = await yt_trending(
+            category=category,
+            max_results=max_results,
+            use_cookies=True
+        )
+
+        videos = [v.to_dict() for v in results]
+
+        logger.info(f"Found {len(videos)} trending videos")
+
+        return [types.TextContent(
+            type="text",
+            text=json.dumps({
+                "success": True,
+                "category": category,
+                "count": len(videos),
+                "videos": videos
+            }, indent=2)
+        )]
+
+    except Exception as e:
+        logger.error(f"Trending fetch failed: {e}", exc_info=True)
+        return [types.TextContent(
+            type="text",
+            text=json.dumps({
+                "success": False,
+                "error": str(e)
+            })
+        )]
+
+
+async def handle_get_video_info(args: Dict) -> List[types.TextContent]:
+    """Get detailed video metadata."""
+    url = args.get("url", "")
+
+    logger.info(f"Getting video info: {url}")
+
+    try:
+        result = await get_video_metadata(
+            video_url=url,
+            use_cookies=True
+        )
+
+        if result:
+            video = result.to_dict()
+            logger.info(f"Got info for: {video.get('title', 'Unknown')}")
+
+            return [types.TextContent(
+                type="text",
+                text=json.dumps({
+                    "success": True,
+                    "video": video
+                }, indent=2)
+            )]
+        else:
+            return [types.TextContent(
+                type="text",
+                text=json.dumps({
+                    "success": False,
+                    "error": "Video not found"
+                })
+            )]
+
+    except Exception as e:
+        logger.error(f"Video info fetch failed: {e}", exc_info=True)
+        return [types.TextContent(
+            type="text",
+            text=json.dumps({
+                "success": False,
+                "error": str(e)
+            })
+        )]
+
+
+async def handle_browse_playlist(args: Dict) -> List[types.TextContent]:
+    """Get videos from a YouTube playlist."""
+    playlist = args.get("playlist", "")
+    max_results = args.get("max_results", 50)
+
+    logger.info(f"Browsing playlist: {playlist}")
+
+    try:
+        results = await get_playlist_videos(
+            playlist_url=playlist,
+            max_results=max_results,
+            use_cookies=True
+        )
+
+        videos = [v.to_dict() for v in results]
+
+        logger.info(f"Found {len(videos)} videos in playlist")
+
+        return [types.TextContent(
+            type="text",
+            text=json.dumps({
+                "success": True,
+                "playlist": playlist,
+                "count": len(videos),
+                "videos": videos
+            }, indent=2)
+        )]
+
+    except Exception as e:
+        logger.error(f"Playlist browse failed: {e}", exc_info=True)
+        return [types.TextContent(
+            type="text",
+            text=json.dumps({
+                "success": False,
+                "error": str(e)
+            })
+        )]
 
 
 async def fetch_youtube_transcript(args: Dict) -> List[types.TextContent]:
