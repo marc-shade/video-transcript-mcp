@@ -46,7 +46,7 @@ python server.py
 
 ## Configuration
 
-Set `AGENTIC_SYSTEM_PATH` environment variable to configure the transcripts storage directory (defaults to `/mnt/agentic-system`).
+Set `AGENTIC_SYSTEM_PATH` environment variable to configure the transcripts storage directory (defaults to `${AGENTIC_SYSTEM_PATH:-/opt/agentic}`).
 
 ## Integration
 

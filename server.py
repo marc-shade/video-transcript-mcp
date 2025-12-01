@@ -6,23 +6,35 @@ Video Transcript Processing MCP Server
 Autonomous knowledge acquisition from technical videos and talks.
 
 Provides tools for:
-- YouTube transcript fetching (via yt-dlp)
+- YouTube search and discovery (via yt-dlp with browser cookies)
+- Channel browsing and trending videos
+- YouTube transcript fetching
 - Transcript cleaning and structuring
 - Key concept extraction
 - Technical insight identification
 - Speaker analysis (for multi-speaker content)
 - Knowledge integration with enhanced-memory
 
-This enables the AGI system to learn from YouTube tutorials, conference talks,
-technical presentations, and expert interviews.
+This enables the AGI system to discover, learn from, and integrate knowledge
+from YouTube tutorials, conference talks, technical presentations, and expert
+interviews.
 
-MCP Tools:
+MCP Tools (Discovery):
+- search_youtube: Search YouTube for videos by query
+- browse_channel: Get videos from a specific channel
+- get_trending: Get trending videos by category
+- get_video_info: Get detailed metadata for a video
+
+MCP Tools (Processing):
 - fetch_youtube_transcript: Get transcript from YouTube URL
 - clean_transcript: Remove repetition and formatting artifacts
 - extract_concepts: Identify key technical concepts discussed
 - extract_methodologies: Extract techniques and approaches
 - analyze_speakers: Identify and separate multiple speakers
 - store_video_knowledge: Store extracted knowledge in memory
+
+Note: Uses browser cookies for paid YouTube account access.
+Set YT_COOKIE_BROWSER env var (default: firefox).
 """
 
 import asyncio
@@ -43,6 +55,15 @@ from mcp.server import NotificationOptions, Server
 import mcp.server.stdio
 import mcp.types as types
 
+# Import YouTube search module
+from yt_search import (
+    search_youtube as yt_search,
+    get_channel_videos,
+    get_trending as yt_trending,
+    get_video_metadata,
+    get_playlist_videos
+)
+
 
 # Configure logging
 logging.basicConfig(
@@ -52,7 +73,7 @@ logging.basicConfig(
 logger = logging.getLogger("video-transcript-mcp")
 
 # Configuration
-TRANSCRIPTS_DIR = Path(os.path.join(os.environ.get("AGENTIC_SYSTEM_PATH", "/mnt/agentic-system"), "video-transcripts"))
+TRANSCRIPTS_DIR = Path(os.path.join(os.environ.get("AGENTIC_SYSTEM_PATH", "${AGENTIC_SYSTEM_PATH:-/opt/agentic}"), "video-transcripts"))
 TRANSCRIPTS_DIR.mkdir(exist_ok=True)
 
 
