@@ -68,6 +68,8 @@ def _format_duration(seconds: Optional[int]) -> Optional[str]:
     """Format duration in seconds to HH:MM:SS or MM:SS."""
     if seconds is None:
         return None
+    # Convert to int in case yt-dlp returns float
+    seconds = int(seconds)
     hours, remainder = divmod(seconds, 3600)
     minutes, secs = divmod(remainder, 60)
     if hours:
