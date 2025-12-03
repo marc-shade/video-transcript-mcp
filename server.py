@@ -6,35 +6,23 @@ Video Transcript Processing MCP Server
 Autonomous knowledge acquisition from technical videos and talks.
 
 Provides tools for:
-- YouTube search and discovery (via yt-dlp with browser cookies)
-- Channel browsing and trending videos
-- YouTube transcript fetching
+- YouTube transcript fetching (via yt-dlp)
 - Transcript cleaning and structuring
 - Key concept extraction
 - Technical insight identification
 - Speaker analysis (for multi-speaker content)
 - Knowledge integration with enhanced-memory
 
-This enables the AGI system to discover, learn from, and integrate knowledge
-from YouTube tutorials, conference talks, technical presentations, and expert
-interviews.
+This enables the AGI system to learn from YouTube tutorials, conference talks,
+technical presentations, and expert interviews.
 
-MCP Tools (Discovery):
-- search_youtube: Search YouTube for videos by query
-- browse_channel: Get videos from a specific channel
-- get_trending: Get trending videos by category
-- get_video_info: Get detailed metadata for a video
-
-MCP Tools (Processing):
+MCP Tools:
 - fetch_youtube_transcript: Get transcript from YouTube URL
 - clean_transcript: Remove repetition and formatting artifacts
 - extract_concepts: Identify key technical concepts discussed
 - extract_methodologies: Extract techniques and approaches
 - analyze_speakers: Identify and separate multiple speakers
 - store_video_knowledge: Store extracted knowledge in memory
-
-Note: Uses browser cookies for paid YouTube account access.
-Set YT_COOKIE_BROWSER env var (default: firefox).
 """
 
 import asyncio
@@ -55,15 +43,6 @@ from mcp.server import NotificationOptions, Server
 import mcp.server.stdio
 import mcp.types as types
 
-# Import YouTube search module
-from yt_search import (
-    search_youtube as yt_search,
-    get_channel_videos,
-    get_trending as yt_trending,
-    get_video_metadata,
-    get_playlist_videos
-)
-
 
 # Configure logging
 logging.basicConfig(
@@ -73,8 +52,8 @@ logging.basicConfig(
 logger = logging.getLogger("video-transcript-mcp")
 
 # Configuration
-TRANSCRIPTS_DIR = Path(os.path.join(os.environ.get("AGENTIC_SYSTEM_PATH", "${AGENTIC_SYSTEM_PATH:-/opt/agentic}"), "video-transcripts"))
-TRANSCRIPTS_DIR.mkdir(exist_ok=True)
+TRANSCRIPTS_DIR = Path(os.environ.get("AGENTIC_SYSTEM_PATH", Path.home() / "agentic-system")) / "video-transcripts"
+TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # Create MCP server
@@ -96,105 +75,6 @@ def extract_video_id(url: str) -> Optional[str]:
 async def handle_list_tools() -> list[types.Tool]:
     """List available video transcript processing tools."""
     return [
-        # Discovery tools
-        types.Tool(
-            name="search_youtube",
-            description="Search YouTube for videos by query. Returns video metadata including title, channel, duration, and view count. Uses browser cookies for paid account access.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search query (e.g., 'AGI self-improvement', 'neural network tutorial')"
-                    },
-                    "max_results": {
-                        "type": "integer",
-                        "description": "Maximum number of results (default: 10, max: 50)",
-                        "default": 10
-                    },
-                    "sort_by": {
-                        "type": "string",
-                        "description": "Sort order",
-                        "enum": ["relevance", "date", "view_count", "rating"],
-                        "default": "relevance"
-                    }
-                },
-                "required": ["query"]
-            }
-        ),
-        types.Tool(
-            name="browse_channel",
-            description="Get recent videos from a YouTube channel. Supports @handles and channel URLs.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "channel": {
-                        "type": "string",
-                        "description": "Channel @handle (e.g., @3blue1brown) or URL"
-                    },
-                    "max_results": {
-                        "type": "integer",
-                        "description": "Maximum videos to return (default: 10)",
-                        "default": 10
-                    }
-                },
-                "required": ["channel"]
-            }
-        ),
-        types.Tool(
-            name="get_trending",
-            description="Get trending YouTube videos by category.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "category": {
-                        "type": "string",
-                        "description": "Trending category",
-                        "enum": ["now", "music", "gaming", "movies"],
-                        "default": "now"
-                    },
-                    "max_results": {
-                        "type": "integer",
-                        "description": "Maximum videos to return (default: 20)",
-                        "default": 20
-                    }
-                }
-            }
-        ),
-        types.Tool(
-            name="get_video_info",
-            description="Get detailed metadata for a specific YouTube video.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "url": {
-                        "type": "string",
-                        "description": "YouTube video URL or video ID"
-                    }
-                },
-                "required": ["url"]
-            }
-        ),
-        types.Tool(
-            name="browse_playlist",
-            description="Get videos from a YouTube playlist.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "playlist": {
-                        "type": "string",
-                        "description": "Playlist URL or playlist ID"
-                    },
-                    "max_results": {
-                        "type": "integer",
-                        "description": "Maximum videos to return (default: 50)",
-                        "default": 50
-                    }
-                },
-                "required": ["playlist"]
-            }
-        ),
-        # Processing tools
         types.Tool(
             name="fetch_youtube_transcript",
             description="Fetch transcript from YouTube video using yt-dlp. Returns cleaned, structured transcript text.",
@@ -338,24 +218,7 @@ async def handle_call_tool(
 ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Handle tool execution requests."""
 
-    # Discovery tools
-    if name == "search_youtube":
-        return await handle_search_youtube(arguments or {})
-
-    elif name == "browse_channel":
-        return await handle_browse_channel(arguments or {})
-
-    elif name == "get_trending":
-        return await handle_get_trending(arguments or {})
-
-    elif name == "get_video_info":
-        return await handle_get_video_info(arguments or {})
-
-    elif name == "browse_playlist":
-        return await handle_browse_playlist(arguments or {})
-
-    # Processing tools
-    elif name == "fetch_youtube_transcript":
+    if name == "fetch_youtube_transcript":
         return await fetch_youtube_transcript(arguments or {})
 
     elif name == "clean_transcript":
@@ -375,207 +238,6 @@ async def handle_call_tool(
 
     else:
         raise ValueError(f"Unknown tool: {name}")
-
-
-async def handle_search_youtube(args: Dict) -> List[types.TextContent]:
-    """Search YouTube for videos."""
-    query = args.get("query", "")
-    max_results = min(args.get("max_results", 10), 50)
-    sort_by = args.get("sort_by", "relevance")
-
-    logger.info(f"Searching YouTube for: {query} (max={max_results})")
-
-    try:
-        results = await yt_search(
-            query=query,
-            max_results=max_results,
-            sort_by=sort_by,
-            use_cookies=True
-        )
-
-        videos = [v.to_dict() for v in results]
-
-        logger.info(f"Found {len(videos)} videos")
-
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "success": True,
-                "query": query,
-                "count": len(videos),
-                "videos": videos
-            }, indent=2)
-        )]
-
-    except Exception as e:
-        logger.error(f"YouTube search failed: {e}", exc_info=True)
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "success": False,
-                "error": str(e)
-            })
-        )]
-
-
-async def handle_browse_channel(args: Dict) -> List[types.TextContent]:
-    """Get videos from a YouTube channel."""
-    channel = args.get("channel", "")
-    max_results = args.get("max_results", 10)
-
-    logger.info(f"Browsing channel: {channel}")
-
-    try:
-        results = await get_channel_videos(
-            channel_url=channel,
-            max_results=max_results,
-            use_cookies=True
-        )
-
-        videos = [v.to_dict() for v in results]
-
-        logger.info(f"Found {len(videos)} videos from channel")
-
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "success": True,
-                "channel": channel,
-                "count": len(videos),
-                "videos": videos
-            }, indent=2)
-        )]
-
-    except Exception as e:
-        logger.error(f"Channel browse failed: {e}", exc_info=True)
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "success": False,
-                "error": str(e)
-            })
-        )]
-
-
-async def handle_get_trending(args: Dict) -> List[types.TextContent]:
-    """Get trending YouTube videos."""
-    category = args.get("category", "now")
-    max_results = args.get("max_results", 20)
-
-    logger.info(f"Getting trending: {category}")
-
-    try:
-        results = await yt_trending(
-            category=category,
-            max_results=max_results,
-            use_cookies=True
-        )
-
-        videos = [v.to_dict() for v in results]
-
-        logger.info(f"Found {len(videos)} trending videos")
-
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "success": True,
-                "category": category,
-                "count": len(videos),
-                "videos": videos
-            }, indent=2)
-        )]
-
-    except Exception as e:
-        logger.error(f"Trending fetch failed: {e}", exc_info=True)
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "success": False,
-                "error": str(e)
-            })
-        )]
-
-
-async def handle_get_video_info(args: Dict) -> List[types.TextContent]:
-    """Get detailed video metadata."""
-    url = args.get("url", "")
-
-    logger.info(f"Getting video info: {url}")
-
-    try:
-        result = await get_video_metadata(
-            video_url=url,
-            use_cookies=True
-        )
-
-        if result:
-            video = result.to_dict()
-            logger.info(f"Got info for: {video.get('title', 'Unknown')}")
-
-            return [types.TextContent(
-                type="text",
-                text=json.dumps({
-                    "success": True,
-                    "video": video
-                }, indent=2)
-            )]
-        else:
-            return [types.TextContent(
-                type="text",
-                text=json.dumps({
-                    "success": False,
-                    "error": "Video not found"
-                })
-            )]
-
-    except Exception as e:
-        logger.error(f"Video info fetch failed: {e}", exc_info=True)
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "success": False,
-                "error": str(e)
-            })
-        )]
-
-
-async def handle_browse_playlist(args: Dict) -> List[types.TextContent]:
-    """Get videos from a YouTube playlist."""
-    playlist = args.get("playlist", "")
-    max_results = args.get("max_results", 50)
-
-    logger.info(f"Browsing playlist: {playlist}")
-
-    try:
-        results = await get_playlist_videos(
-            playlist_url=playlist,
-            max_results=max_results,
-            use_cookies=True
-        )
-
-        videos = [v.to_dict() for v in results]
-
-        logger.info(f"Found {len(videos)} videos in playlist")
-
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "success": True,
-                "playlist": playlist,
-                "count": len(videos),
-                "videos": videos
-            }, indent=2)
-        )]
-
-    except Exception as e:
-        logger.error(f"Playlist browse failed: {e}", exc_info=True)
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "success": False,
-                "error": str(e)
-            })
-        )]
 
 
 async def fetch_youtube_transcript(args: Dict) -> List[types.TextContent]:
