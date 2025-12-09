@@ -43,6 +43,13 @@ from mcp.server import NotificationOptions, Server
 import mcp.server.stdio
 import mcp.types as types
 
+# Try to import youtube-transcript-api (v1.2.3+ has new API)
+try:
+    from youtube_transcript_api import YouTubeTranscriptApi
+    YOUTUBE_TRANSCRIPT_API_AVAILABLE = True
+except ImportError:
+    YOUTUBE_TRANSCRIPT_API_AVAILABLE = False
+
 
 # Configure logging
 logging.basicConfig(
@@ -240,21 +247,33 @@ async def handle_call_tool(
         raise ValueError(f"Unknown tool: {name}")
 
 
-async def fetch_youtube_transcript(args: Dict) -> List[types.TextContent]:
-    """Fetch YouTube transcript using yt-dlp."""
-    url = args.get("url", "")
-    language = args.get("language", "en")
-    auto_clean = args.get("auto_clean", True)
-
-    logger.info(f"Fetching transcript from {url}")
+async def fetch_transcript_via_api(video_id: str, language: str = "en") -> Optional[str]:
+    """Fetch transcript using youtube-transcript-api (faster, no yt-dlp needed)."""
+    if not YOUTUBE_TRANSCRIPT_API_AVAILABLE:
+        return None
 
     try:
-        # Extract video ID
-        video_id = extract_video_id(url)
-        if not video_id:
-            raise ValueError("Invalid YouTube URL")
+        # v1.2.3+ API: Use fetch() method
+        transcript = YouTubeTranscriptApi.fetch(video_id, languages=[language, 'en'])
 
-        # Use yt-dlp to get transcript
+        # Combine all text entries
+        text_parts = []
+        for entry in transcript:
+            # entry can be FetchedTranscriptSnippet with .text attribute
+            if hasattr(entry, 'text'):
+                text_parts.append(entry.text)
+            elif isinstance(entry, dict) and 'text' in entry:
+                text_parts.append(entry['text'])
+
+        return ' '.join(text_parts)
+    except Exception as e:
+        logger.warning(f"youtube-transcript-api failed: {e}")
+        return None
+
+
+async def fetch_transcript_via_ytdlp(video_id: str, url: str, language: str = "en") -> Optional[str]:
+    """Fetch transcript using yt-dlp (fallback method)."""
+    try:
         output_file = TRANSCRIPTS_DIR / f"{video_id}.vtt"
 
         process = await asyncio.create_subprocess_exec(
@@ -274,7 +293,7 @@ async def fetch_youtube_transcript(args: Dict) -> List[types.TextContent]:
         vtt_files = list(TRANSCRIPTS_DIR.glob(f"{video_id}.*.vtt"))
 
         if not vtt_files:
-            raise Exception("No transcript found (video may not have captions)")
+            return None
 
         # Read VTT file
         vtt_content = vtt_files[0].read_text()
@@ -290,6 +309,50 @@ async def fetch_youtube_transcript(args: Dict) -> List[types.TextContent]:
 
         transcript = ' '.join(transcript_lines)
 
+        # Cleanup VTT files
+        for vtt_file in vtt_files:
+            vtt_file.unlink()
+
+        return transcript
+    except Exception as e:
+        logger.warning(f"yt-dlp failed: {e}")
+        return None
+
+
+async def fetch_youtube_transcript(args: Dict) -> List[types.TextContent]:
+    """Fetch YouTube transcript using youtube-transcript-api (primary) or yt-dlp (fallback)."""
+    url = args.get("url", "")
+    language = args.get("language", "en")
+    auto_clean = args.get("auto_clean", True)
+
+    logger.info(f"Fetching transcript from {url}")
+
+    try:
+        # Extract video ID
+        video_id = extract_video_id(url)
+        if not video_id:
+            raise ValueError("Invalid YouTube URL")
+
+        transcript = None
+        method_used = None
+
+        # Try youtube-transcript-api first (faster)
+        if YOUTUBE_TRANSCRIPT_API_AVAILABLE:
+            logger.info(f"Trying youtube-transcript-api for {video_id}")
+            transcript = await fetch_transcript_via_api(video_id, language)
+            if transcript:
+                method_used = "youtube-transcript-api"
+
+        # Fall back to yt-dlp
+        if not transcript:
+            logger.info(f"Falling back to yt-dlp for {video_id}")
+            transcript = await fetch_transcript_via_ytdlp(video_id, url, language)
+            if transcript:
+                method_used = "yt-dlp"
+
+        if not transcript:
+            raise Exception("No transcript found (video may not have captions)")
+
         # Auto-clean if requested
         if auto_clean:
             cleaned_result = await clean_transcript({
@@ -300,11 +363,7 @@ async def fetch_youtube_transcript(args: Dict) -> List[types.TextContent]:
             cleaned_data = json.loads(cleaned_result[0].text)
             transcript = cleaned_data.get("cleaned_transcript", transcript)
 
-        # Cleanup VTT files
-        for vtt_file in vtt_files:
-            vtt_file.unlink()
-
-        logger.info(f"Fetched transcript ({len(transcript)} chars)")
+        logger.info(f"Fetched transcript ({len(transcript)} chars) via {method_used}")
 
         return [types.TextContent(
             type="text",
@@ -314,7 +373,8 @@ async def fetch_youtube_transcript(args: Dict) -> List[types.TextContent]:
                 "url": url,
                 "transcript": transcript,
                 "word_count": len(transcript.split()),
-                "auto_cleaned": auto_clean
+                "auto_cleaned": auto_clean,
+                "method": method_used
             }, indent=2)
         )]
 
