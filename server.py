@@ -253,13 +253,14 @@ async def fetch_transcript_via_api(video_id: str, language: str = "en") -> Optio
         return None
 
     try:
-        # v1.2.3+ API: Use fetch() method
-        transcript = YouTubeTranscriptApi.fetch(video_id, languages=[language, 'en'])
+        # v1.2.3+ API: Create instance and use fetch() method
+        api = YouTubeTranscriptApi()
+        transcript = api.fetch(video_id, languages=[language, 'en'])
 
-        # Combine all text entries
+        # Combine all text entries - FetchedTranscript is iterable of FetchedTranscriptSnippet
         text_parts = []
         for entry in transcript:
-            # entry can be FetchedTranscriptSnippet with .text attribute
+            # entry is FetchedTranscriptSnippet with .text attribute
             if hasattr(entry, 'text'):
                 text_parts.append(entry.text)
             elif isinstance(entry, dict) and 'text' in entry:
