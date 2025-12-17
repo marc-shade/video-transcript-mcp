@@ -1,6 +1,13 @@
 # Video Transcript MCP Server
 
-Autonomous knowledge acquisition from technical videos and talks via YouTube transcript processing.
+[![MCP](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
+[![Python](https://img.shields.io/badge/Python-3.10+-green)](https://python.org)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+[![Part of Agentic System](https://img.shields.io/badge/Part_of-Agentic_System-brightgreen)](https://github.com/marc-shade/agentic-system-oss)
+
+> **Autonomous knowledge acquisition from technical videos and talks via YouTube transcript processing.**
+
+Part of the [Agentic System](https://github.com/marc-shade/agentic-system-oss) - a 24/7 autonomous AI framework with persistent memory.
 
 ## Features
 
